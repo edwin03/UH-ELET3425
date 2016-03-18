@@ -1,0 +1,916 @@
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 1
+
+0000                         1  *#cpu 8051 Medium
+0000                         2  *
+0000                         3  * DDS MICRO-C 8031/51 Startup Code & Runtime library for MEDIUM model
+0000                         4  *
+0000                         5  * Copyright 1991-2001 Dave Dunfield
+0000                         6  * All rights reserved.
+0000                         7  *
+0000                         8  ?RAM	EQU	$0000		External DATA (RAM) Starts here
+06FF                         9  ?RAMEND	EQU	$06FF		External DATA (RAM) Ends here (AT89C51ED2)
+0800                        10  	ORG	$0800		CODE Starts here (normally in ROM)
+0800                        11  * Fixed memory locations for alternate access to the R0-R7 register bank.
+0800                        12  * If you are NOT useing BANK 0, these equates must be adjusted.
+0000                        13  ?R0	EQU	0		Used for "POP" from stack
+0001                        14  ?R1	EQU	?R0+1		Used to load index indirectly
+0002                        15  ?R2	EQU	?R0+2		""		""		""		""
+0003                        16  ?R3	EQU	?R0+3		Used by some runtime lib functions
+0004                        17  ?R4	EQU	?R0+4
+0005                        18  ?R5	EQU	?R0+5
+0006                        19  ?R6	EQU	?R0+6
+0007                        20  ?R7	EQU	?R0+7
+0800                        21  *
+0800                        22  * Startup code entry point
+0800                        23  *
+0800                        24  * If you are NOT using interrupts, you can reclaim 78 bytes
+0800                        25  * of code space by removing the following TWO lines.
+0800  01 4E                 26  	AJMP	*+$004E		Skip interrupt vectors
+0802                        27  	DS	$004E-2		Reserve space for interrupt vectors
+084E                        28  ************************************************************************
+084E  75 8E 10              29  	MOV 08EH,#10H		 Enable all accessible expanded memory of AT89C51ED2
+0851                        30  * Clear XRAM memory
+0851                        31  *	MOV DPTR,#0	
+0851                        32  *?CLEAR_XRAM:
+0851                        33  *	CLR		 A
+0851                        34  *	MOVX	@DPTR,A
+0851                        35  *	INC		DPTR
+0851                        36  *	MOV		A,DPH
+0851                        37  *	XRL		A,#7
+0851                        38  *	JNZ		?CLEAR_XRAM	
+0851                        39  * Clear RAM memory
+0851                        40  *	MOV 	R0,#255
+0851                        41  *	CLR	A
+0851                        42  *?CLEAR_RAM
+0851                        43  *	MOV	@R0,A
+0851                        44  *	DJNZ	R0,?CLEAR_RAM		
+0851                        45  **************************************************************************
+0851  75 81 07              46  	MOV	SP,#?stk-1	Set up initial stack
+0854  90 0C B7              47  	MOV	DPTR,#?Ivars	Point to inited variables
+0857  79 00                 48  	MOV	R1,#?RAM	Get LOW RAM address
+0859  7A 00                 49  	MOV	R2,#=?RAM	Get HIGH RAM address
+085B  7B 00                 50  	MOV	R3,#?Isize	Get LOW size
+085D  7C 00                 51  	MOV	R4,#=?Isize	Get HIGH size
+085F  EB                    52  ?init1	MOV	A,R3		Get LOW
+0860  4C                    53  	ORL	A,R4		Zero?
+0861  60 1C                 54  	JZ	?init2		Yes, don't do it
+0863  E4                    55  	CLR	A		Zero offset
+0864  93                    56  	MOVC	A,[A+DPTR]	Read from ROM
+0865  A3                    57  	INC	DPTR		Advance source
+0866  CA                    58  	XCH	A,R2		Save data, get HIGH dest
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 2
+
+0867  C5 83                 59  	XCH	A,DPH		Swap with HIGH source
+0869  CA                    60  	XCH	A,R2		Resave HIGH dest, recover data
+086A  C9                    61  	XCH	A,R1		Save data, get LOW dest
+086B  C5 82                 62  	XCH	A,DPL		Swap with LOW source
+086D  C9                    63  	XCH	A,R1		Resave LOW dest, recover data
+086E  F0                    64  	MOVX	[DPTR],A	Write to RAM
+086F  A3                    65  	INC	DPTR		Advance dest
+0870  CA                    66  	XCH	A,R2		Save data, get HIGH dest
+0871  C5 83                 67  	XCH	A,DPH		Swap with HIGH source
+0873  CA                    68  	XCH	A,R2		Resave HIGH dest, recover data
+0874  C9                    69  	XCH	A,R1		Save data, get LOW dest
+0875  C5 82                 70  	XCH	A,DPL		Swap with LOW source
+0877  C9                    71  	XCH	A,R1		Resave LOW dest, recover data
+0878  1B                    72  	DEC	R3		Reduce count LOW
+0879  BB FF E3              73  	CJNE	R3,#-1,?init1	Not expired
+087C  1C                    74  	DEC	R4		Reduce count HIGH
+087D  80 E0                 75  	SJMP	?init1		And proceed
+087F  90 00 02              76  ?init2	MOV	DPTR,#?heap	Point to heap storage
+0882  E4                    77  	CLR	A		Get end of list flag
+0883  F0                    78  	MOVX	[DPTR],A	Set heap ending address
+0884  12 08 8C              79  	LCALL	main		Execute program
+0887                        80  * EXIT to MON51 by calling the 'timer1' interrupt vector.
+0887                        81  * This causes MON51 to think that a single-step operation has just
+0887                        82  * completed, and therefore it saves the user registers, and performs
+0887                        83  * a context switch back to the monitor.
+0887  12 00 1B              84  exit	LCALL	$001B		Call Timer-1 interrupt
+088A  80 FB                 85  	SJMP	exit		Incase he go's again
+088C                        86  *01066
+088C                        87  *#file C:\bipom\devtools\microc\8051io.h
+088C                        88  *5:
+088C                        89  *6:
+088C                        90  *10:
+088C                        91  *11:extern register printf(), sprintf(), concat();
+088C                        92  *12:
+088C                        93  *#file C:\bipom\devtools\microc\8051bit.h
+088C                        94  *26:
+088C                        95  *27:
+088C                        96  *31:
+088C                        97  *35:
+088C                        98  *39:
+088C                        99  *41:
+088C                       100  *#file C:\bipom\devtools\microc\8051reg.h
+088C                       101  *6:
+088C                       102  *7:
+088C                       103  *8:extern register unsigned char PSW, SP, DPH, DPL, P0, P1, P2, P3,
+088C                       104  *9:	IP, IE, TMOD, TCON, TH0, TL0, TH1, TL1, SCON, SBUF, PCON,
+088C                       105  *10:	T2CON, TH2, TL2, RCAP2H, RCAP2L;
+088C                       106  *11:
+088C                       107  *#file test2.c
+088C                       108  *4:
+088C                       109  *5:int global_var;
+088C                       110  *6:
+088C                       111  *7:void main()
+088C                       112  *8:{
+088C                       113  *9:	int i, x, y;
+088C                       114  *10:	serinit(9600);
+088C                       115  *#fun main 6 ?AB1
+088C  7F 06                116  main MOV R7,#6
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 3
+
+088E  12 0B C2             117   LCALL ?adjstk
+0891  74 80                118   MOV A,#128
+0893  75 F0 25             119   MOV B,#37
+0896  C0 E0                120   PUSH A
+0898  C0 F0                121   PUSH B
+089A  12 09 BA             122   LCALL serinit
+089D  15 81                123   DEC SP
+089F  15 81                124   DEC SP
+08A1                       125  *11:	x=0;
+08A1  74 00                126   MOV A,#0
+08A3  75 F0 00             127   MOV B,#0
+08A6  78 FB                128   MOV R0,#-5
+08A8  12 0B B6             129   LCALL ?auto0
+08AB  F6                   130   MOV [R0],A
+08AC  08                   131   INC R0
+08AD  A6 F0                132   MOV [R0],B
+08AF                       133  *12:	y=0;
+08AF  74 00                134   MOV A,#0
+08B1  75 F0 00             135   MOV B,#0
+08B4  08                   136   INC R0
+08B5  F6                   137   MOV [R0],A
+08B6  08                   138   INC R0
+08B7  A6 F0                139   MOV [R0],B
+08B9                       140  *13:	for(i=0; i<10 ; i++)
+08B9  74 00                141   MOV A,#0
+08BB  75 F0 00             142   MOV B,#0
+08BE  78 F9                143   MOV R0,#-7
+08C0  12 0B B6             144   LCALL ?auto0
+08C3  F6                   145   MOV [R0],A
+08C4  08                   146   INC R0
+08C5  A6 F0                147   MOV [R0],B
+08C7                       148  ?AB1 EQU *
+08C7  78 F9                149   MOV R0,#-7
+08C9  12 0B B6             150   LCALL ?auto0
+08CC  E6                   151   MOV A,[R0]
+08CD  08                   152   INC R0
+08CE  86 F0                153   MOV B,[R0]
+08D0  7B 0A                154   MOV R3,#10
+08D2  7C 00                155   MOV R4,#0
+08D4  12 0C 25             156   LCALL ?lt
+08D7  45 F0                157   ORL A,B
+08D9  70 03                158   JNZ ?AB3
+08DB  02 09 6D             159   LJMP ?AB2
+08DE                       160  ?AB3 EQU *
+08DE  80 13                161   SJMP ?AB4
+08E0                       162  ?AB5 EQU *
+08E0  78 F9                163   MOV R0,#-7
+08E2  12 0B B6             164   LCALL ?auto0
+08E5  E6                   165   MOV A,[R0]
+08E6  08                   166   INC R0
+08E7  86 F0                167   MOV B,[R0]
+08E9  12 0C 0E             168   LCALL ?inc
+08EC  18                   169   DEC R0
+08ED  F6                   170   MOV [R0],A
+08EE  08                   171   INC R0
+08EF  A6 F0                172   MOV [R0],B
+08F1  80 D4                173   SJMP ?AB1
+08F3                       174  ?AB4 EQU *
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 4
+
+08F3                       175  *14:	{
+08F3                       176  *15:	global_var = i;
+08F3  78 F9                177   MOV R0,#-7
+08F5  12 0B B6             178   LCALL ?auto0
+08F8  E6                   179   MOV A,[R0]
+08F9  08                   180   INC R0
+08FA  86 F0                181   MOV B,[R0]
+08FC  90 00 00             182   MOV DPTR,#global_var
+08FF  F0                   183   MOVX [DPTR],A
+0900  A3                   184   INC DPTR
+0901  C5 F0                185   XCH A,B
+0903  F0                   186   MOVX [DPTR],A
+0904  C5 F0                187   XCH A,B
+0906                       188  *16:	x = x+3;
+0906  08                   189   INC R0
+0907  E6                   190   MOV A,[R0]
+0908  08                   191   INC R0
+0909  86 F0                192   MOV B,[R0]
+090B  24 03                193   ADD A,#3
+090D  C5 F0                194   XCH A,B
+090F  34 00                195   ADDC A,#0
+0911  C5 F0                196   XCH A,B
+0913  18                   197   DEC R0
+0914  F6                   198   MOV [R0],A
+0915  08                   199   INC R0
+0916  A6 F0                200   MOV [R0],B
+0918                       201  *17:	printf("Value of x is = %d\n", x);
+0918  74 75                202   MOV A,#?AB0+0&255
+091A  75 F0 09             203   MOV B,#?AB0+0/256
+091D  C0 E0                204   PUSH A
+091F  C0 F0                205   PUSH B
+0921  18                   206   DEC R0
+0922  E6                   207   MOV A,[R0]
+0923  08                   208   INC R0
+0924  86 F0                209   MOV B,[R0]
+0926  C0 E0                210   PUSH A
+0928  C0 F0                211   PUSH B
+092A  74 02                212   MOV A,#2
+092C  75 F0 00             213   MOV B,#0
+092F  12 09 A9             214   LCALL printf
+0932  15 81                215   DEC SP
+0934  15 81                216   DEC SP
+0936  15 81                217   DEC SP
+0938  15 81                218   DEC SP
+093A                       219  *18:	y=x;
+093A  78 FB                220   MOV R0,#-5
+093C  12 0B B6             221   LCALL ?auto0
+093F  E6                   222   MOV A,[R0]
+0940  08                   223   INC R0
+0941  86 F0                224   MOV B,[R0]
+0943  08                   225   INC R0
+0944  F6                   226   MOV [R0],A
+0945  08                   227   INC R0
+0946  A6 F0                228   MOV [R0],B
+0948                       229  *19:	printf("The updated value of y is = %d\n", y);
+0948  74 89                230   MOV A,#?AB0+20&255
+094A  75 F0 09             231   MOV B,#?AB0+20/256
+094D  C0 E0                232   PUSH A
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 5
+
+094F  C0 F0                233   PUSH B
+0951  18                   234   DEC R0
+0952  E6                   235   MOV A,[R0]
+0953  08                   236   INC R0
+0954  86 F0                237   MOV B,[R0]
+0956  C0 E0                238   PUSH A
+0958  C0 F0                239   PUSH B
+095A  74 02                240   MOV A,#2
+095C  75 F0 00             241   MOV B,#0
+095F  12 09 A9             242   LCALL printf
+0962  15 81                243   DEC SP
+0964  15 81                244   DEC SP
+0966  15 81                245   DEC SP
+0968  15 81                246   DEC SP
+096A                       247  *20:	}
+096A  02 08 E0             248   LJMP ?AB5
+096D                       249  ?AB2 EQU *
+096D                       250  *21:	for(;;);
+096D                       251  ?AB6 EQU *
+096D  02 09 6D             252   LJMP ?AB6
+0970                       253  ?AB7 EQU *
+0970                       254  *22:}
+0970  7F FA                255   MOV R7,#-6
+0972  02 0B D1             256   LJMP ?exit
+0975                       257  *#lcl y 32768 4
+0975                       258  *#lcl x 32768 2
+0975                       259  *#lcl i 32768 0
+0975                       260  *#end
+0975  56 61 6C 75 65 20 +  261  ?AB0 DB 86,97,108,117,101,32,111,102,32,120,32,105,115,32,61,32
+0985  25 64 0A 00 54 68 +  262   DB 37,100,10,0,84,104,101,32,117,112,100,97,116,101,100,32
+0995  76 61 6C 75 65 20 +  263   DB 118,97,108,117,101,32,111,102,32,121,32,105,115,32,61,32
+09A5  25 64 0A 00          264   DB 37,100,10,0
+09A9                       265  *#gbl printf 37936 0
+09A9                       266  *#gbl sprintf 5168 0
+09A9                       267  *#gbl concat 5168 0
+09A9                       268  *#gbl PSW 5504 0
+09A9                       269  *#gbl SP 5504 0
+09A9                       270  *#gbl DPH 5504 0
+09A9                       271  *#gbl DPL 5504 0
+09A9                       272  *#gbl P0 5504 0
+09A9                       273  *#gbl P1 5504 0
+09A9                       274  *#gbl P2 5504 0
+09A9                       275  *#gbl P3 5504 0
+09A9                       276  *#gbl IP 5504 0
+09A9                       277  *#gbl IE 5504 0
+09A9                       278  *#gbl TMOD 5504 0
+09A9                       279  *#gbl TCON 5504 0
+09A9                       280  *#gbl TH0 5504 0
+09A9                       281  *#gbl TL0 5504 0
+09A9                       282  *#gbl TH1 5504 0
+09A9                       283  *#gbl TL1 5504 0
+09A9                       284  *#gbl SCON 5504 0
+09A9                       285  *#gbl SBUF 5504 0
+09A9                       286  *#gbl PCON 5504 0
+09A9                       287  *#gbl T2CON 5504 0
+09A9                       288  *#gbl TH2 5504 0
+09A9                       289  *#gbl TL2 5504 0
+09A9                       290  *#gbl RCAP2H 5504 0
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 6
+
+09A9                       291  *#gbl RCAP2L 5504 0
+09A9                       292  *#gbl global_var 32768 0
+09A9                       293  *#gbl main 560 0
+09A9                       294  *#gbl serinit 36912 0
+09A9                       295  * Formatted print to console: printf([const] char format, ...)
+09A9  23                   296  printf	RL	A		Two bytes/Stack entry
+09AA  F4                   297  	CPL	A		Convert to minus & adjust
+09AB  25 81                298  	ADD	A,SP		Offset to SP
+09AD  F8                   299  	MOV	R0,A		R0 = stack
+09AE  12 0C 8D             300  	LCALL	?temp		Get temporary location
+09B1  12 0A 18             301  	LCALL	_format_	Invoke formatter
+09B4  12 0C 8D             302  	LCALL	?temp		Get buffer back
+09B7  02 09 E7             303  	LJMP	?putstr		And output string
+09BA                       304  *DEMO installed October 29, 2009 (Not to be used after 30 days).
+09BA                       305  * Set up the serial port: serinit(speed)
+09BA  78 FB                306  serinit	MOV	R0,#-5		Point to first parm
+09BC  12 0B B6             307  	LCALL	?auto0		Point to it
+09BF  86 03                308  	MOV	?R3,[R0]	Get LOW value
+09C1  08                   309  	INC	R0		Advance
+09C2  86 04                310  	MOV	?R4,[R0]	Get HIGH value
+09C4                       311  * Modify this constant for correct operation at different CPU clocks
+09C4                       312  * Value is calculated as the CPU CRYSTAL (in Hz) divided by 384.
+09C4  74 80                313  	MOV	A,#28800	Get LOW conversion factor
+09C6  75 F0 70             314  	MOV	B,#=28800	Get HIGH conversion factor
+09C9  12 0B D8             315  	LCALL	?div		Calculate timer value
+09CC  12 0C 1B             316  	LCALL	?neg		Convert to count-up value
+09CF  75 89 20             317  	MOV	TMOD,#%00100000	T1=8 bit auto-reload
+09D2  F5 8D                318  	MOV	TH1,A		Timer 1 reload value
+09D4  F5 8B                319  	MOV	TL1,A		Timer 1 initial value
+09D6  75 88 49             320  	MOV	TCON,#%01001001	Run 1, Hold 0
+09D9  75 98 52             321  	MOV	SCON,#%01010010	Mode 1, REN, TXRDY, RXEMPTY
+09DC  22                   322  	RET
+09DD                       323  *DEMO installed October 29, 2009 (Not to be used after 30 days).
+09DD                       324  *
+09DD                       325  * Low level I/O functions to communicate with the console terminal
+09DD                       326  *
+09DD                       327  * Write a string to the console: putstr(char *string)
+09DD  78 FB                328  putstr	MOV	R0,#-5		Offset to parameter
+09DF  12 0B B6             329  	LCALL	?auto0		Set up address
+09E2  86 82                330  	MOV	DPL,[R0]	Get low byte
+09E4  08                   331  	INC	R0		Step to next
+09E5  86 83                332  	MOV	DPH,[R0]	Get high byte
+09E7  E0                   333  ?putstr	MOVX	A,[DPTR]	Get char
+09E8  60 2D                334  	JZ	?AE2		End of string, return
+09EA  12 09 F6             335  	LCALL	?putch		Output (with NEWLINE translation)
+09ED  A3                   336  	INC	DPTR		Advance to next char
+09EE  80 F7                337  	SJMP	?putstr		And continue
+09F0                       338  * Write a character to the console: putch(char c)
+09F0  78 FB                339  putch	MOV	R0,#-5		Offset to parameter
+09F2  12 0B B6             340  	LCALL	?auto0		Set up address
+09F5  E6                   341  	MOV	A,[R0]		Get char to write
+09F6  30 99 FD             342  ?putch	JNB	SCON.1,*	Wait for the bit
+09F9  C2 99                343  	CLR	SCON.1		Indicte we are sending
+09FB  F5 99                344  	MOV	SBUF,A		Write out char
+09FD  B4 0A 17             345  	CJNE	A,#$0A,?AE2	Not NEWLINE
+0A00  74 0D                346  	MOV	A,#$0D		Get CR
+0A02  80 F2                347  	SJMP	?putch		And go again
+0A04                       348  * Check for a character from the console: int chkch()
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 7
+
+0A04  E4                   349  chkch	CLR	A		Assume zero
+0A05  30 98 0C             350  	JNB	SCON.0,?AE1	No data ready
+0A08                       351  * Get a character from the console: int getch()
+0A08  30 98 FD             352  getch	JNB	SCON.0,*	Wait for the bit
+0A0B  C2 98                353  	CLR	SCON.0		Indicate we receved it
+0A0D  E5 99                354  	MOV	A,SBUF		Read the data
+0A0F  B4 0D 02             355  	CJNE	A,#$0D,?AE1	Not CR, its OK
+0A12  74 0A                356  	MOV	A,#$0A		Convert to NEWLINE
+0A14  75 F0 00             357  ?AE1	MOV	B,#0		Zero high byte
+0A17  22                   358  ?AE2	RET
+0A18                       359  *DEMO installed October 29, 2009 (Not to be used after 30 days).
+0A18                       360  *
+0A18                       361  * Common routine to process a format specifier, and build an
+0A18                       362  * output string with appropriate substitutions.
+0A18                       363  *
+0A18                       364  * MEDIUM/LARGE version: read string with MOVC, add '%r' specifier
+0A18                       365  *
+0A18                       366  * R0	= Pointer to stack variables (format, var1, var2 ...)
+0A18                       367  * DPTR	= Pointer to output string
+0A18                       368  *
+0A18                       369  * Read next character from the format string
+0A18  12 0B 8F             370  _format_ LCALL	?AF34		Save output pointer
+0A1B  86 82                371  	MOV	DPL,[R0]	Get format LOW
+0A1D  08                   372  	INC	R0		Advance
+0A1E  86 83                373  	MOV	DPH,[R0]	Get format HIGH
+0A20  08                   374  	INC	R0		Advance
+0A21  E4                   375  ?AF1	CLR	A		Get ZERO
+0A22  FE                   376  	MOV	R6,A		Clear flags
+0A23  FF                   377  	MOV	R7,A		Clear width
+0A24  E4                   378  	CLR	A		Zero ACC
+0A25  93                   379  	MOVC	A,[A+DPTR]	Read value
+0A26  70 06                380  	JNZ	?AF2		Not end of string
+0A28                       381  * End of format string, return home with the goods
+0A28  12 0B 8F             382  	LCALL	?AF34		DPTR = output
+0A2B  E4                   383  	CLR	A		Get zero
+0A2C  F0                   384  	MOVX	[DPTR],A	Zero terminate output
+0A2D  22                   385  	RET
+0A2E                       386  * For special '%' command, process operands
+0A2E  B4 25 55             387  ?AF2	CJNE	A,#'%',?AF11	Not a special character
+0A31  A3                   388  	INC	DPTR		Advance to next
+0A32  E4                   389  	CLR	A		Zero ACC
+0A33  93                   390  	MOVC	A,[A+DPTR]	Get following char
+0A34                       391  * If '-', left justify
+0A34  B4 2D 06             392  	CJNE	A,#'-',?AF3	No a minus
+0A37  43 07 80             393  	ORL	?R7,#%10000000	Set left justify bit
+0A3A  A3                   394  	INC	DPTR		Advance to next
+0A3B  E4                   395  	CLR	A		Zero ACC
+0A3C  93                   396  	MOVC	A,[A+DPTR]	Get next char
+0A3D                       397  * If leading '0', zero fill
+0A3D  B4 30 03             398  ?AF3	CJNE	A,#'0',?AF4	Zero fill
+0A40  43 07 40             399  	ORL	?R7,#%01000000	Set ZERO FILL bit
+0A43                       400  * Evaluate the field width
+0A43  24 D0                401  ?AF4	ADD	A,#-'0'		Convert to zero
+0A45  B4 0A 00             402  	CJNE	A,#10,*+3	Compare with no corrution
+0A48  50 0C                403  	JNC	?AF5		Exit
+0A4A  CE                   404  	XCH	A,R6		Get width, save char
+0A4B  75 F0 0A             405  	MOV	B,#10		*10
+0A4E  A4                   406  	MUL			Get new width
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 8
+
+0A4F  2E                   407  	ADD	A,R6		Include new value
+0A50  FE                   408  	MOV	R6,A		Copy back
+0A51  A3                   409  	INC	DPTR		Advance
+0A52  E4                   410  	CLR	A		Zero ACC
+0A53  93                   411  	MOVC	A,[A+DPTR]	Get next char
+0A54  80 ED                412  	SJMP	?AF4		And proceed
+0A56                       413  * Test for the various special characters
+0A56  E4                   414  ?AF5	CLR	A		Zero ACC
+0A57  93                   415  	MOVC	A,[A+DPTR]	Get char back
+0A58                       416  * 'd' - decimal number
+0A58  B4 64 13             417  	CJNE	A,#'d',?AF7	No, try next
+0A5B  E6                   418  	MOV	A,[R0]		Get LOW value
+0A5C  08                   419  	INC	R0		Advance
+0A5D  86 F0                420  	MOV	B,[R0]		Get HIGH value
+0A5F  30 F7 08             421  	JNB	B.7,?AF6		Not negative
+0A62  43 07 20             422  	ORL	?R7,#%00100000	Set '-' output flag
+0A65  12 0C 1B             423  	LCALL	?neg		Negate it
+0A68  A6 F0                424  	MOV	[R0],B		Resave LOW
+0A6A  18                   425  ?AF6	DEC	R0		Advance
+0A6B  F6                   426  	MOV	[R0],A		Resave LOW
+0A6C  80 03                427  	SJMP	?AF8		And proceed
+0A6E                       428  * 'u' - Unsigned number
+0A6E  B4 75 05             429  ?AF7	CJNE	A,#'u',?AF9	No, try next
+0A71  43 07 0A             430  ?AF8	ORL	?R7,#10		Indicate base 10 number
+0A74  80 21                431  	SJMP	?AF14		And proceed
+0A76                       432  * 'x' - Hexidecimal number
+0A76  B4 78 05             433  ?AF9	CJNE	A,#'x',?AF10	No, try next
+0A79  43 07 10             434  	ORL	?R7,#16		Indicate base 16 number
+0A7C  80 19                435  	SJMP	?AF14
+0A7E                       436  * 'o' - Octal number
+0A7E  B4 6F 10             437  ?AF10	CJNE	A,#'o',?AF13	No, try next
+0A81  43 07 08             438  	ORL	?R7,#8		Indicate base 8	number
+0A84  80 11                439  	SJMP	?AF14
+0A86                       440  * Nothing special, write the character out
+0A86  12 0B 8F             441  ?AF11	LCALL	?AF34		DPTR = Output
+0A89  F0                   442  	MOVX	[DPTR],A	Write into output buffer
+0A8A  A3                   443  	INC	DPTR		Advance to next char
+0A8B                       444  * Swap back to format string, advance & process next char
+0A8B  12 0B 8F             445  ?AF12	LCALL	?AF34		DPTR = Input
+0A8E  A3                   446  	INC	DPTR		Skip to next char
+0A8F  80 90                447  	SJMP	?AF1		Back for next
+0A91                       448  * 'b' - Binary number
+0A91  B4 62 62             449  ?AF13	CJNE	A,#'b',?AF22	No, try next
+0A94  43 07 02             450  	ORL	?R7,#2		Indicate base 2 number
+0A97                       451  * Convert numbers into string (on stack)
+0A97  7A 00                452  ?AF14	MOV	R2,#0		Count of digits
+0A99  C0 04                453  ?AF15	PUSH	?R4		Save R4
+0A9B  C0 05                454  	PUSH	?R5		Save R5
+0A9D  C0 06                455  	PUSH	?R6		Save R6
+0A9F  C0 07                456  	PUSH	?R7		Save R7
+0AA1  AB 07                457  	MOV	R3,?R7		Get flags
+0AA3  53 03 1F             458  	ANL	?R3,#%00011111	Save only number base
+0AA6  7C 00                459  	MOV	R4,#0		Zero high
+0AA8  E6                   460  	MOV	A,[R0]		Get LOW value
+0AA9  08                   461  	INC	R0		Advance
+0AAA  86 F0                462  	MOV	B,[R0]		Get HIGH value
+0AAC  12 0B D8             463  	LCALL	?div		Perform division
+0AAF  A6 F0                464  	MOV	[R0],B		Save HIGH
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 9
+
+0AB1  18                   465  	DEC	R0		Backup
+0AB2  F6                   466  	MOV	[R0],A		Save LOW
+0AB3  ED                   467  	MOV	A,R5		Get remainder
+0AB4  D0 07                468  	POP	?R7		Restore R7
+0AB6  D0 06                469  	POP	?R6		Restore R6
+0AB8  D0 05                470  	POP	?R5		Restore R5
+0ABA  D0 04                471  	POP	?R4		Restore R4
+0ABC  24 30                472  	ADD	A,#'0'		Convert to ASCII
+0ABE  B4 3A 00             473  	CJNE	A,#$3A,*+3	Hex digit?
+0AC1  40 02                474  	JC	?AF16		No, its OK
+0AC3  24 07                475  	ADD	A,#7		Convert to ALPHANUMERIC
+0AC5  C0 E0                476  ?AF16	PUSH	A		Save it
+0AC7  0A                   477  	INC	R2		Advance count
+0AC8  E6                   478  	MOV	A,[R0]		Get result
+0AC9  45 F0                479  	ORL	A,B		More digits?
+0ACB  70 CC                480  	JNZ	?AF15		Yes, do them
+0ACD  12 0B 8F             481  	LCALL	?AF34		Set DPTR to output
+0AD0  A9 02                482  	MOV	R1,?R2		Save length for unstack
+0AD2                       483  * If number was negative, output '-'
+0AD2  EF                   484  	MOV	A,R7		Get flags
+0AD3  30 E5 05             485  	JNB	A.5,?AF17		Not minus
+0AD6  74 2D                486  	MOV	A,#'-'		Get minus sign
+0AD8  F0                   487  	MOVX	[DPTR],A	Write it out
+0AD9  A3                   488  	INC	DPTR		Advance output
+0ADA  0A                   489  	INC	R2		Advance size (for pad)
+0ADB                       490  * Unstack the number into the output buffer
+0ADB  12 0B 98             491  ?AF17	LCALL	?AF35		Pad the field
+0ADE  D0 E0                492  ?AF18	POP	A		Get char
+0AE0  F0                   493  	MOVX	[DPTR],A	Write it
+0AE1  A3                   494  	INC	DPTR		Advance
+0AE2  D9 FA                495  	DJNZ	R1,?AF18		Do them all
+0AE4                       496  * If Left justify, pad with spaces
+0AE4  08                   497  ?AF19	INC	R0		Advance pointer
+0AE5  08                   498  	INC	R0		To next stack variable
+0AE6  EF                   499  ?AF20	MOV	A,R7		Get flags
+0AE7  30 E7 A1             500  	JNB	A.7,?AF12		No left justify
+0AEA  EA                   501  ?AF21	MOV	A,R2		Get width
+0AEB  C3                   502  	CLR	C		Insure no borrow
+0AEC  9E                   503  	SUBB	A,R6		Calculate remainding
+0AED  50 9C                504  	JNC	?AF12		Already there
+0AEF  74 20                505  	MOV	A,#' '		Get output
+0AF1  F0                   506  	MOVX	[DPTR],A	Place in output buffer
+0AF2  A3                   507  	INC	DPTR		Advance output
+0AF3  0A                   508  	INC	R2		Advance size
+0AF4  80 F4                509  	SJMP	?AF21		Do them all
+0AF6                       510  * 'c' - Single character
+0AF6  B4 63 0D             511  ?AF22	CJNE	A,#'c',?AF24	No, try next
+0AF9  AA 01                512  	MOV	R2,1		Length is one
+0AFB  12 0B 8F             513  	LCALL	?AF34		Swap out
+0AFE  12 0B 98             514  	LCALL	?AF35		Right justify
+0B01  E6                   515  	MOV	A,[R0]		Get value
+0B02  F0                   516  ?AF23	MOVX	[DPTR],A	Write it
+0B03  A3                   517  	INC	DPTR		Advance output
+0B04  80 DE                518  	SJMP	?AF19		Output
+0B06                       519  * 's' - External string
+0B06  B4 73 2C             520  ?AF24	CJNE	A,#'s',?AF29	No, try next
+0B09  C0 82                521  	PUSH	DPL		Save format LOW
+0B0B  C0 83                522  	PUSH	DPH		Save format HIGH
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 10
+
+0B0D  86 82                523  	MOV	DPL,[R0]	Get string LOW
+0B0F  08                   524  	INC	R0		Advance
+0B10  86 83                525  	MOV	DPH,[R0]	Get string HIGH
+0B12  7A 00                526  	MOV	R2,#0		Assume zero length
+0B14  E0                   527  ?AF25	MOVX	A,[DPTR]	Get char
+0B15  60 04                528  	JZ	?AF26		And proceed
+0B17  A3                   529  	INC	DPTR		Advance string
+0B18  0A                   530  	INC	R2		Advance count
+0B19  80 F9                531  	SJMP	?AF25		Do till done
+0B1B  12 0B 8A             532  ?AF26	LCALL	?AF40		Load DPTR & swap
+0B1E  12 0B 98             533  	LCALL	?AF35		Right justify
+0B21  12 0B 8F             534  ?AF27	LCALL	?AF34		DPTR = string
+0B24  E0                   535  	MOVX	A,[DPTR]	Get a char
+0B25  A3                   536  	INC	DPTR		Advance
+0B26  12 0B 8F             537  	LCALL	?AF34		DPTR = output
+0B29  60 04                538  	JZ	?AF28		And proceed
+0B2B  F0                   539  	MOVX	[DPTR],A	Write to string
+0B2C  A3                   540  	INC	DPTR		Advance
+0B2D  80 F2                541  	SJMP	?AF27		Do them all
+0B2F  D0 05                542  ?AF28	POP	?R5		Restore HIGH format
+0B31  D0 04                543  	POP	?R4		Restore LOW format
+0B33  80 AF                544  	SJMP	?AF19		And proceed
+0B35                       545  * 'i' - Internal string
+0B35  B4 69 27             546  ?AF29	CJNE	A,#'i',?AF44	No, try next
+0B38  86 01                547  	MOV	?R1,[R0]	Get string address
+0B3A  7A 00                548  	MOV	R2,#0		Assume zero length
+0B3C  E7                   549  ?AF30	MOV	A,[R1]		Get char
+0B3D  60 04                550  	JZ	?AF31		End of string
+0B3F  09                   551  	INC	R1		Advance string
+0B40  0A                   552  	INC	R2		Advance count
+0B41  80 F9                553  	SJMP	?AF30		Do them all
+0B43  12 0B 8F             554  ?AF31	LCALL	?AF34		DPTR = output
+0B46  12 0B 98             555  	LCALL	?AF35		Right justify
+0B49  86 01                556  	MOV	?R1,[R0]	Reset string
+0B4B  E7                   557  ?AF32	MOV	A,[R1]		Get string
+0B4C  60 96                558  	JZ	?AF19		End of string
+0B4E  F0                   559  	MOVX	[DPTR],A	Save it
+0B4F  09                   560  	INC	R1		Advance string
+0B50  A3                   561  	INC	DPTR		Advance output
+0B51  80 F8                562  	SJMP	?AF32		Do it all
+0B53                       563  * Unknown, just output this character
+0B53  F9                   564  ?AF33	MOV	R1,A		Save it
+0B54  7A 01                565  	MOV	R2,#1		Single
+0B56  12 0B 8F             566  	LCALL	?AF34		Get chars
+0B59  12 0B 98             567  	LCALL	?AF35		Right justify
+0B5C  E9                   568  	MOV	A,R1		Get back
+0B5D  80 A3                569  	SJMP	?AF23		Write & continue
+0B5F                       570  * 'r' - String from ROM (code)
+0B5F  B4 72 F1             571  ?AF44	CJNE	A,#'r',?AF33	No, try next
+0B62  C0 82                572  	PUSH	DPL		Save format LOW
+0B64  C0 83                573  	PUSH	DPH		Save format HIGH
+0B66  86 82                574  	MOV	DPL,[R0]	Get string LOW
+0B68  08                   575  	INC	R0		Advance
+0B69  86 83                576  	MOV	DPH,[R0]	Get string HIGH
+0B6B  7A 00                577  	MOV	R2,#0		Assume zero length
+0B6D  E4                   578  ?AF45	CLR	A		Zero A
+0B6E  93                   579  	MOVC	A,[A+DPTR]	Get char
+0B6F  60 04                580  	JZ	?AF46		And proceed
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 11
+
+0B71  A3                   581  	INC	DPTR		Advance string
+0B72  0A                   582  	INC	R2		Advance count
+0B73  80 F8                583  	SJMP	?AF45		Do till done
+0B75  12 0B 8A             584  ?AF46	LCALL	?AF40		Load DPTR & swap
+0B78  12 0B 98             585  	LCALL	?AF35		Right justify
+0B7B  12 0B 8F             586  ?AF47	LCALL	?AF34		DPTR = string
+0B7E  E4                   587  	CLR	A		Zero A
+0B7F  93                   588  	MOVC	A,[A+DPTR]	Get a char
+0B80  A3                   589  	INC	DPTR		Advance
+0B81  12 0B 8F             590  	LCALL	?AF34		DPTR = output
+0B84  60 A9                591  	JZ	?AF28		And proceed
+0B86  F0                   592  	MOVX	[DPTR],A	Write to string
+0B87  A3                   593  	INC	DPTR		Advance
+0B88  80 F1                594  	SJMP	?AF47		Do them all
+0B8A                       595  *
+0B8A                       596  * Load DPTR and swap
+0B8A                       597  *
+0B8A  86 83                598  ?AF40	MOV	DPH,[R0]	Get HIGH string
+0B8C  18                   599  	DEC	R0		Backup
+0B8D  86 82                600  	MOV	DPL,[R0]	Get LOW string
+0B8F                       601  *
+0B8F                       602  * Exchange the input and output pointers (DPTR <-> R4-5)
+0B8F                       603  *	
+0B8F  CD                   604  ?AF34	XCH	A,R5
+0B90  C5 83                605  	XCH	A,DPH
+0B92  CD                   606  	XCH	A,R5
+0B93  CC                   607  	XCH	A,R4
+0B94  C5 82                608  	XCH	A,DPL
+0B96  CC                   609  	XCH	A,R4
+0B97  22                   610  	RET
+0B98                       611  *
+0B98                       612  * Pad the input field with the proper character
+0B98                       613  *
+0B98  EE                   614  ?AF35	MOV	A,R6		Get width
+0B99  60 1A                615  	JZ	?AF38		No justification
+0B9B  8F F0                616  	MOV	B,R7		Get pad value
+0B9D  20 F7 15             617  	JB	B.7,?AF38		Left justify, do nothing
+0BA0  C0 02                618  	PUSH	?R2		Save R2
+0BA2  EA                   619  ?AF36	MOV	A,R2		Get width
+0BA3  C3                   620  	CLR	C		Insure no borrow
+0BA4  9E                   621  	SUBB	A,R6		Compare against limit
+0BA5  50 0C                622  	JNC	?AF37		We are already there
+0BA7  74 20                623  	MOV	A,#' '		Assume space
+0BA9  30 F6 02             624  	JNB	B.6,*+5		Assumption correct
+0BAC  74 30                625  	MOV	A,#'0'		Get leading zeros
+0BAE  F0                   626  	MOVX	[DPTR],A	Write it out
+0BAF  A3                   627  	INC	DPTR		Advance output
+0BB0  0A                   628  	INC	R2		Advance count
+0BB1  80 EF                629  	SJMP	?AF36		do them all
+0BB3  D0 02                630  ?AF37	POP	?R2		Restore R2
+0BB5  22                   631  ?AF38	RET
+0BB6                       632  *DEMO installed October 29, 2009 (Not to be used after 30 days).
+0BB6                       633  *
+0BB6                       634  * DDS MICRO-C/51 runtime support functions for ALL memory models
+0BB6                       635  *
+0BB6                       636  * Setup R0 to access the stack
+0BB6  C8                   637  ?auto0	XCH	A,R0		Save A, get parameter
+0BB7  25 81                638  	ADD	A,SP		Adjust for stack offset
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 12
+
+0BB9  C8                   639  	XCH	A,R0		And restore order
+0BBA  22                   640  nargs	RET
+0BBB                       641  * Setup R1 to access the stack
+0BBB  C9                   642  ?auto1	XCH	A,R1		Save A, get parmater
+0BBC  25 81                643  	ADD	A,SP		Adjust for stack offset
+0BBE  C9                   644  	XCH	A,R1		And restore order
+0BBF  7A 00                645  	MOV	R2,#0		Clear high of index
+0BC1  22                   646  	RET
+0BC2                       647  * Adjust the stack pointer by R7 bytes
+0BC2  D0 83                648  ?adjstk	POP	DPH		Get high byte of RET addr
+0BC4  D0 82                649  	POP	DPL		Get low byte of RET addr
+0BC6  CF                   650  	XCH	A,R7		Get adjust (and save A)
+0BC7  25 81                651  	ADD	A,SP		Adjust stack
+0BC9  F5 81                652  	MOV	SP,A		Set new value
+0BCB  CF                   653  	XCH	A,R7		Restore A (& return new stack)
+0BCC  C0 82                654  	PUSH	DPL		Resave low
+0BCE  C0 83                655  	PUSH	DPH		Resave high
+0BD0  22                   656  	RET
+0BD1                       657  * Clean up stack & exit function
+0BD1  CF                   658  ?exit	XCH	A,R7		Get adjust (save A)
+0BD2  25 81                659  	ADD	A,SP		Adjust stack
+0BD4  F5 81                660  	MOV	SP,A		Resave
+0BD6  CF                   661  	XCH	A,R7		Restore A (& return new stack)
+0BD7  22                   662  	RET
+0BD8                       663  *
+0BD8                       664  * 16 bit unsigned division of AB / R3-4
+0BD8                       665  *
+0BD8  C0 02                666  ?div	PUSH	?R2		Save index HIGH
+0BDA  C0 01                667  	PUSH	?R1		Save index LOW
+0BDC  AA F0                668  	MOV	R2,B		Save HI1
+0BDE  F9                   669  	MOV	R1,A		Save LO1
+0BDF  7E 00                670  	MOV 	R6,#0		Begin with zero
+0BE1  7D 00                671  	MOV 	R5,#0		"" ""
+0BE3  7F 11                672  	MOV	R7,#17		16+1 bit shift
+0BE5  C3                   673  ?div1	CLR	C		No carry in
+0BE6  E9                   674  ?div2	MOV	A,R1		Shift parm1 left, C = carry out
+0BE7  33                   675  	RLC	A		Do the shift
+0BE8  F9                   676  	MOV	R1,A		Resave
+0BE9  EA                   677  	MOV	A,R2		Get high half
+0BEA  33                   678  	RLC	A		Do the shift
+0BEB  FA                   679  	MOV	R2,A		Resave
+0BEC  DF 08                680  	DJNZ	R7,?div3	Not done, keep going
+0BEE                       681  * Get result and exit
+0BEE  F5 F0                682  	MOV	B,A		B = Quotient HIGH
+0BF0  E9                   683  	MOV	A,R1		A = Quotient LOW
+0BF1  D0 01                684  	POP	?R1		Restore index LOW
+0BF3  D0 02                685  	POP	?R2		Restore index HIGH
+0BF5  22                   686  	RET			And go home
+0BF6                       687  * Compare registers & shift in appropriate bit
+0BF6  ED                   688  ?div3	MOV	A,R5		Shift carry into secondary result
+0BF7  33                   689  	RLC	A		Do the shift
+0BF8  FD                   690  	MOV	R5,A		Resave
+0BF9  EE                   691  	MOV	A,R6		Get high half
+0BFA  33                   692  	RLC	A		Do the shift
+0BFB  FE                   693  	MOV	R6,A		Resave
+0BFC  C3                   694  	CLR	C		Clear carry for test
+0BFD  ED                   695  	MOV	A,R5		Get secondary LOW
+0BFE  9B                   696  	SUBB	A,R3		Test against primary LOW
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 13
+
+0BFF  F5 F0                697  	MOV	B,A		Save for later store
+0C01  EE                   698  	MOV	A,R6		Get secondary HIGH
+0C02  9C                   699  	SUBB	A,R4		Test against primary high
+0C03  40 E0                700  	JC	?div1		Still smaller, shift in 0
+0C05  AD F0                701  	MOV	R5,B		Set new secondary high
+0C07  FE                   702  	MOV	R6,A		Set new secondary low
+0C08  D3                   703  	SETB	C		Set '1' in register
+0C09  80 DB                704  	SJMP	?div2		Shift in one
+0C0B                       705  * Increment the 16 bit accumulator by 2
+0C0B  12 0C 0E             706  ?inc2	LCALL	?inc		Extra advance
+0C0E                       707  * Increment the 16 bit accumulator by 1
+0C0E  04                   708  ?inc	INC	A		Advance by 1
+0C0F  70 02                709  	JNZ	*+4		No Overflow
+0C11  05 F0                710  	INC	B		Advance high
+0C13  22                   711  	RET
+0C14                       712  * Decrement the 16 bit accumulator by 1
+0C14  14                   713  ?dec	DEC	A		Reduce by 1
+0C15  B4 FF 02             714  	CJNE	A,#$FF,*+5	No underflow
+0C18  15 F0                715  	DEC	B		Reduce high
+0C1A  22                   716  	RET
+0C1B                       717  * Two's complement the 16 bit accumulator
+0C1B  12 0C 14             718  ?neg	LCALL	?dec		Decrement the accumulator
+0C1E                       719  * One's complement the 16 bit accumulator
+0C1E  F4                   720  ?com	CPL	A		Complement low byte
+0C1F  C5 F0                721  	XCH	A,B		Swap it
+0C21  F4                   722  	CPL	A		Complement high byte
+0C22  C5 F0                723  	XCH	A,B		Reorder
+0C24  22                   724  	RET
+0C25                       725  * Signed compares
+0C25  12 0C 58             726  ?lt	LCALL	?scomp		AB < R3-4 (signed)
+0C28  40 29                727  	JC	?ret1
+0C2A  80 1E                728  	SJMP	?ret0
+0C2C  12 0C 58             729  ?le	LCALL	?scomp		AB <= R3-4 (signed)
+0C2F  40 22                730  	JC	?ret1
+0C31  70 17                731  	JNZ	?ret0
+0C33  80 1E                732  	SJMP	?ret1
+0C35  12 0C 58             733  ?gt	LCALL	?scomp		AB > R3-4 (signed)
+0C38  40 10                734  	JC	?ret0
+0C3A  70 17                735  	JNZ	?ret1
+0C3C  80 0C                736  	SJMP	?ret0
+0C3E  12 0C 58             737  ?ge	LCALL	?scomp		AB >= R3-4 (signed)
+0C41  50 10                738  	JNC	?ret1
+0C43  80 05                739  	SJMP	?ret0
+0C45                       740  * Equality compares
+0C45  12 0C 6C             741  ?eq	LCALL	?ucomp		AB == R3-4
+0C48  60 09                742  ?eq1	JZ	?ret1		They are the same
+0C4A  E4                   743  ?ret0	CLR	A		Get zero
+0C4B  F5 F0                744  	MOV	B,A		Set high
+0C4D  22                   745  	RET			Return logical ZERO
+0C4E  12 0C 6C             746  ?ne	LCALL	?ucomp		AB != R3-4
+0C51  60 F7                747  	JZ	?ret0
+0C53  E4                   748  ?ret1	CLR	A		Get zero
+0C54  F5 F0                749  	MOV	B,A		Set high
+0C56  04                   750  	INC	A		Convert to 1
+0C57  22                   751  	RET			Return logical ONE
+0C58                       752  * Signed compare of AB & R3-4
+0C58  C3                   753  ?scomp	CLR	C		Clear borrow
+0C59  9B                   754  	SUBB	A,R3		Calculate difference (low)
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 14
+
+0C5A  C5 F0                755  	XCH	A,B		Get high
+0C5C  9C                   756  	SUBB	A,R4		Calculate difference (high)
+0C5D  20 E7 07             757  	JB	A.7,?sco2	Negative == <
+0C60  20 D2 07             758  	JB	PSW.2,?sco3	Overflow == <
+0C63  C3                   759  ?sco1	CLR	C		Indicate not less than
+0C64  45 F0                760  	ORL	A,B		Setup 'Z' if equal
+0C66  22                   761  	RET
+0C67  20 D2 F9             762  ?sco2	JB	PSW.2,?sco1	Negative & overflow == !<
+0C6A  D3                   763  ?sco3	SETB	C		Indicate less than
+0C6B  22                   764  	RET
+0C6C                       765  * Unsigned compare of AB & R3-4
+0C6C  C5 F0                766  ?ucomp	XCH	A,B		Get high
+0C6E  C3                   767  	CLR	C		Zero high
+0C6F  9C                   768  	SUBB	A,R4		Compare high
+0C70  70 03                769  	JNZ	*+5		Different
+0C72  E5 F0                770  	MOV	A,B		Get low
+0C74  9B                   771  	SUBB	A,R3		Compare low
+0C75  22                   772  	RET
+0C76                       773  *DEMO installed October 29, 2009 (Not to be used after 30 days).
+0C76                       774  *
+0C76                       775  * DDS MICRO-C/51 runtime library support files for TINY/MEDIUM/LARGE model
+0C76                       776  *
+0C76                       777  * Load a byte from code memory into TEMP register
+0C76  FB                   778  ?extbc	MOV	R3,A		Save A
+0C77  E4                   779  	CLR	A		Zero offset
+0C78  93                   780  	MOVC	A,[A+DPTR]	Get the byte
+0C79  CB                   781  	XCH	A,R3		Restore A, save result
+0C7A  22                   782  	RET
+0C7B                       783  * Load a word from code memory into TEMP register
+0C7B  FC                   784  ?extwc	MOV	R4,A		Save A
+0C7C  E4                   785  	CLR	A		Zero offset
+0C7D  93                   786  	MOVC	A,[A+DPTR]	Get the low order byte
+0C7E  FB                   787  	MOV	R3,A		Save result LOW
+0C7F  74 01                788  	MOV	A,#1		Offset to HIGH
+0C81  93                   789  	MOVC	A,[A+DPTR]	Get the high order byte
+0C82  CC                   790  	XCH	A,R4		Restore A, save result HIGH
+0C83  22                   791  	RET
+0C84                       792  * Load a word from code memory into INDEX register
+0C84  FA                   793  ?extic	MOV	R2,A		Save A
+0C85  E4                   794  	CLR	A		Zero offset
+0C86  93                   795  	MOVC	A,[A+DPTR]	Get the low order byte
+0C87  F9                   796  	MOV	R1,A		Save result LOW
+0C88  74 01                797  	MOV	A,#1		Offset to HIGH
+0C8A  93                   798  	MOVC	A,[A+DPTR]	Get the high order byte
+0C8B  CA                   799  	XCH	A,R2		Restore A, Save result HIGH
+0C8C  22                   800  	RET
+0C8D                       801  *DEMO installed October 29, 2009 (Not to be used after 30 days).
+0C8D                       802  *
+0C8D                       803  * DDS MICRO-C/51 runtime library files for SMALL, COMPACT, MEDIUM and LARGE
+0C8D                       804  * memory models
+0C8D                       805  *
+0C8D                       806  * Locate a temporary buffer on the end of heap storage
+0C8D  90 00 02             807  ?temp	MOV	DPTR,#?heap	Point to buffer
+0C90  E0                   808  ?temp1	MOVX	A,[DPTR]	Get flag value
+0C91  A3                   809  	INC	DPTR		Skip flag
+0C92  60 14                810  	JZ	?temp2		End of list
+0C94  E0                   811  	MOVX	A,[DPTR]	Get LOW size
+0C95  FF                   812  	MOV	R7,A		Save it
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 15
+
+0C96  A3                   813  	INC	DPTR		Skip LOW
+0C97  E0                   814  	MOVX	A,[DPTR]	Get HIGH size
+0C98  A3                   815  	INC	DPTR		Skip HIGH
+0C99  CF                   816  	XCH	A,R7		Get LOW
+0C9A  25 82                817  	ADD	A,DPL		Add to pointer
+0C9C  F5 82                818  	MOV	DPL,A		Resave pointer
+0C9E  EF                   819  	MOV	A,R7		Get HIGH
+0C9F  35 83                820  	ADDC	A,DPH		Add to pointer
+0CA1  F5 83                821  	MOV	DPH,A		Resave pointer
+0CA3  80 EB                822  	SJMP	?temp1		And proceed
+0CA5                       823  * Load a byte from external memory into TEMP register
+0CA5  FB                   824  ?extb	MOV	R3,A		Save A
+0CA6  E0                   825  	MOVX	A,[DPTR]	Get the byte
+0CA7  CB                   826  	XCH	A,R3		Restore A, save result
+0CA8  22                   827  ?temp2	RET
+0CA9                       828  * Load a word of external memory into TEMP register
+0CA9  FC                   829  ?extw	MOV	R4,A		Save A
+0CAA  E0                   830  	MOVX	A,[DPTR]	Get the low order byte
+0CAB  FB                   831  	MOV	R3,A		Save result LOW
+0CAC  A3                   832  	INC	DPTR		Advance to next
+0CAD  E0                   833  	MOVX	A,[DPTR]	Get the high order byte
+0CAE  CC                   834  	XCH	A,R4		Restore A, save result HIGH
+0CAF  22                   835  	RET
+0CB0                       836  * Load a word of external memory into INDEX register
+0CB0  FA                   837  ?exti	MOV	R2,A		Save A
+0CB1  E0                   838  	MOVX	A,[DPTR]	Get the low order byte
+0CB2  F9                   839  	MOV	R1,A		Save result LOW
+0CB3  A3                   840  	INC	DPTR		Advance to next
+0CB4  E0                   841  	MOVX	A,[DPTR]	Get the high order byte
+0CB5  CA                   842  	XCH	A,R2		Restore A, Save result HIGH
+0CB6  22                   843  	RET
+0CB7                       844  *DEMO installed October 29, 2009 (Not to be used after 30 days).
+0CB7                       845  *#map1 Segment 1, initialized variables (in ROM)
+0CB7                       846  ?Ivars	EQU	*		Address of initialized variables
+0000                       847  ?Isize	EQU	*-?Ivars	Size of initialized data
+0CB7                       848  *#map2 Segment 2, internal "register" variables
+0008                       849  	ORG	$0008		Internal ram ALWAYS starts here
+0008                       850  ?stk	EQU	*		Processor stack goes at end
+0008                       851  *#map3 Segment 3, external memory
+0000                       852  	ORG	?RAM		Memory goes here
+0000                       853  global_var DS 2
+0002                       854  *
+0002                       855  * Suffix file, define heap memory at the end of all pre-allocated storage.
+0002                       856  *
+0002                       857  ?heap	EQU	*		End of allocated memory
+0002                       858  *DEMO installed October 29, 2009 (Not to be used after 30 days).
+DUNFIELD 8051 ASSEMBLER: test2                                        PAGE: 16
+
+SYMBOL TABLE:
+
+?AB0    -0975   ?AB1    -08C7   ?AB2    -096D   ?AB3    -08DE   ?AB4    -08F3
+?AB5    -08E0   ?AB6    -096D   ?AB7    -0970   ?ADJSTK -0BC2   ?AE1    -0A14
+?AE2    -0A17   ?AF1    -0A21   ?AF10   -0A7E   ?AF11   -0A86   ?AF12   -0A8B
+?AF13   -0A91   ?AF14   -0A97   ?AF15   -0A99   ?AF16   -0AC5   ?AF17   -0ADB
+?AF18   -0ADE   ?AF19   -0AE4   ?AF2    -0A2E   ?AF20   -0AE6   ?AF21   -0AEA
+?AF22   -0AF6   ?AF23   -0B02   ?AF24   -0B06   ?AF25   -0B14   ?AF26   -0B1B
+?AF27   -0B21   ?AF28   -0B2F   ?AF29   -0B35   ?AF3    -0A3D   ?AF30   -0B3C
+?AF31   -0B43   ?AF32   -0B4B   ?AF33   -0B53   ?AF34   -0B8F   ?AF35   -0B98
+?AF36   -0BA2   ?AF37   -0BB3   ?AF38   -0BB5   ?AF4    -0A43   ?AF40   -0B8A
+?AF44   -0B5F   ?AF45   -0B6D   ?AF46   -0B75   ?AF47   -0B7B   ?AF5    -0A56
+?AF6    -0A6A   ?AF7    -0A6E   ?AF8    -0A71   ?AF9    -0A76   ?AUTO0  -0BB6
+?AUTO1  -0BBB   ?COM    -0C1E   ?DEC    -0C14   ?DIV    -0BD8   ?DIV1   -0BE5
+?DIV2   -0BE6   ?DIV3   -0BF6   ?EQ     -0C45   ?EQ1    -0C48   ?EXIT   -0BD1
+?EXTB   -0CA5   ?EXTBC  -0C76   ?EXTI   -0CB0   ?EXTIC  -0C84   ?EXTW   -0CA9
+?EXTWC  -0C7B   ?GE     -0C3E   ?GT     -0C35   ?HEAP   -0002   ?INC    -0C0E
+?INC2   -0C0B   ?INIT1  -085F   ?INIT2  -087F   ?ISIZE  -0000   ?IVARS  -0CB7
+?LE     -0C2C   ?LT     -0C25   ?NE     -0C4E   ?NEG    -0C1B   ?PUTCH  -09F6
+?PUTSTR -09E7   ?R0     -0000   ?R1     -0001   ?R2     -0002   ?R3     -0003
+?R4     -0004   ?R5     -0005   ?R6     -0006   ?R7     -0007   ?RAM    -0000
+?RAMEND -06FF   ?RET0   -0C4A   ?RET1   -0C53   ?SCO1   -0C63   ?SCO2   -0C67
+?SCO3   -0C6A   ?SCOMP  -0C58   ?STK    -0008   ?TEMP   -0C8D   ?TEMP1  -0C90
+?TEMP2  -0CA8   ?UCOMP  -0C6C   CHKCH   -0A04   EXIT    -0887   GETCH   -0A08
+GLOBAL_VAR              -0000   MAIN    -088C   NARGS   -0BBA   PRINTF  -09A9
+PUTCH   -09F0   PUTSTR  -09DD   SERINIT -09BA   _FORMAT_-0A18

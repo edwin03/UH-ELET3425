@@ -1,0 +1,858 @@
+*#cpu 8051 Medium
+*
+* DDS MICRO-C 8031/51 Startup Code & Runtime library for MEDIUM model
+*
+* Copyright 1991-2001 Dave Dunfield
+* All rights reserved.
+*
+?RAM	EQU	$0000		External DATA (RAM) Starts here
+?RAMEND	EQU	$06FF		External DATA (RAM) Ends here (AT89C51ED2)
+	ORG	$0800		CODE Starts here (normally in ROM)
+* Fixed memory locations for alternate access to the R0-R7 register bank.
+* If you are NOT useing BANK 0, these equates must be adjusted.
+?R0	EQU	0		Used for "POP" from stack
+?R1	EQU	?R0+1		Used to load index indirectly
+?R2	EQU	?R0+2		""		""		""		""
+?R3	EQU	?R0+3		Used by some runtime lib functions
+?R4	EQU	?R0+4
+?R5	EQU	?R0+5
+?R6	EQU	?R0+6
+?R7	EQU	?R0+7
+*
+* Startup code entry point
+*
+* If you are NOT using interrupts, you can reclaim 78 bytes
+* of code space by removing the following TWO lines.
+	AJMP	*+$004E		Skip interrupt vectors
+	DS	$004E-2		Reserve space for interrupt vectors
+************************************************************************
+	MOV 08EH,#10H		 Enable all accessible expanded memory of AT89C51ED2
+* Clear XRAM memory
+*	MOV DPTR,#0	
+*?CLEAR_XRAM:
+*	CLR		 A
+*	MOVX	@DPTR,A
+*	INC		DPTR
+*	MOV		A,DPH
+*	XRL		A,#7
+*	JNZ		?CLEAR_XRAM	
+* Clear RAM memory
+*	MOV 	R0,#255
+*	CLR	A
+*?CLEAR_RAM
+*	MOV	@R0,A
+*	DJNZ	R0,?CLEAR_RAM		
+**************************************************************************
+	MOV	SP,#?stk-1	Set up initial stack
+	MOV	DPTR,#?Ivars	Point to inited variables
+	MOV	R1,#?RAM	Get LOW RAM address
+	MOV	R2,#=?RAM	Get HIGH RAM address
+	MOV	R3,#?Isize	Get LOW size
+	MOV	R4,#=?Isize	Get HIGH size
+?init1	MOV	A,R3		Get LOW
+	ORL	A,R4		Zero?
+	JZ	?init2		Yes, don't do it
+	CLR	A		Zero offset
+	MOVC	A,[A+DPTR]	Read from ROM
+	INC	DPTR		Advance source
+	XCH	A,R2		Save data, get HIGH dest
+	XCH	A,DPH		Swap with HIGH source
+	XCH	A,R2		Resave HIGH dest, recover data
+	XCH	A,R1		Save data, get LOW dest
+	XCH	A,DPL		Swap with LOW source
+	XCH	A,R1		Resave LOW dest, recover data
+	MOVX	[DPTR],A	Write to RAM
+	INC	DPTR		Advance dest
+	XCH	A,R2		Save data, get HIGH dest
+	XCH	A,DPH		Swap with HIGH source
+	XCH	A,R2		Resave HIGH dest, recover data
+	XCH	A,R1		Save data, get LOW dest
+	XCH	A,DPL		Swap with LOW source
+	XCH	A,R1		Resave LOW dest, recover data
+	DEC	R3		Reduce count LOW
+	CJNE	R3,#-1,?init1	Not expired
+	DEC	R4		Reduce count HIGH
+	SJMP	?init1		And proceed
+?init2	MOV	DPTR,#?heap	Point to heap storage
+	CLR	A		Get end of list flag
+	MOVX	[DPTR],A	Set heap ending address
+	LCALL	main		Execute program
+* EXIT to MON51 by calling the 'timer1' interrupt vector.
+* This causes MON51 to think that a single-step operation has just
+* completed, and therefore it saves the user registers, and performs
+* a context switch back to the monitor.
+exit	LCALL	$001B		Call Timer-1 interrupt
+	SJMP	exit		Incase he go's again
+*01066
+*#file C:\bipom\devtools\microc\8051io.h
+*5:
+*6:
+*10:
+*11:extern register printf(), sprintf(), concat();
+*12:
+*#file C:\bipom\devtools\microc\8051bit.h
+*26:
+*27:
+*31:
+*35:
+*39:
+*41:
+*#file C:\bipom\devtools\microc\8051reg.h
+*6:
+*7:
+*8:extern register unsigned char PSW, SP, DPH, DPL, P0, P1, P2, P3,
+*9:	IP, IE, TMOD, TCON, TH0, TL0, TH1, TL1, SCON, SBUF, PCON,
+*10:	T2CON, TH2, TL2, RCAP2H, RCAP2L;
+*11:
+*#file test2.c
+*4:
+*5:int global_var;
+*6:
+*7:void main()
+*8:{
+*9:	int i, x, y;
+*10:	serinit(9600);
+*#fun main 6 ?AB1
+main MOV R7,#6
+ LCALL ?adjstk
+ MOV A,#128
+ MOV B,#37
+ PUSH A
+ PUSH B
+ LCALL serinit
+ DEC SP
+ DEC SP
+*11:	x=0;
+ MOV A,#0
+ MOV B,#0
+ MOV R0,#-5
+ LCALL ?auto0
+ MOV [R0],A
+ INC R0
+ MOV [R0],B
+*12:	y=0;
+ MOV A,#0
+ MOV B,#0
+ INC R0
+ MOV [R0],A
+ INC R0
+ MOV [R0],B
+*13:	for(i=0; i<10 ; i++)
+ MOV A,#0
+ MOV B,#0
+ MOV R0,#-7
+ LCALL ?auto0
+ MOV [R0],A
+ INC R0
+ MOV [R0],B
+?AB1 EQU *
+ MOV R0,#-7
+ LCALL ?auto0
+ MOV A,[R0]
+ INC R0
+ MOV B,[R0]
+ MOV R3,#10
+ MOV R4,#0
+ LCALL ?lt
+ ORL A,B
+ JNZ ?AB3
+ LJMP ?AB2
+?AB3 EQU *
+ SJMP ?AB4
+?AB5 EQU *
+ MOV R0,#-7
+ LCALL ?auto0
+ MOV A,[R0]
+ INC R0
+ MOV B,[R0]
+ LCALL ?inc
+ DEC R0
+ MOV [R0],A
+ INC R0
+ MOV [R0],B
+ SJMP ?AB1
+?AB4 EQU *
+*14:	{
+*15:	global_var = i;
+ MOV R0,#-7
+ LCALL ?auto0
+ MOV A,[R0]
+ INC R0
+ MOV B,[R0]
+ MOV DPTR,#global_var
+ MOVX [DPTR],A
+ INC DPTR
+ XCH A,B
+ MOVX [DPTR],A
+ XCH A,B
+*16:	x = x+3;
+ INC R0
+ MOV A,[R0]
+ INC R0
+ MOV B,[R0]
+ ADD A,#3
+ XCH A,B
+ ADDC A,#0
+ XCH A,B
+ DEC R0
+ MOV [R0],A
+ INC R0
+ MOV [R0],B
+*17:	printf("Value of x is = %d\n", x);
+ MOV A,#?AB0+0&255
+ MOV B,#?AB0+0/256
+ PUSH A
+ PUSH B
+ DEC R0
+ MOV A,[R0]
+ INC R0
+ MOV B,[R0]
+ PUSH A
+ PUSH B
+ MOV A,#2
+ MOV B,#0
+ LCALL printf
+ DEC SP
+ DEC SP
+ DEC SP
+ DEC SP
+*18:	y=x;
+ MOV R0,#-5
+ LCALL ?auto0
+ MOV A,[R0]
+ INC R0
+ MOV B,[R0]
+ INC R0
+ MOV [R0],A
+ INC R0
+ MOV [R0],B
+*19:	printf("The updated value of y is = %d\n", y);
+ MOV A,#?AB0+20&255
+ MOV B,#?AB0+20/256
+ PUSH A
+ PUSH B
+ DEC R0
+ MOV A,[R0]
+ INC R0
+ MOV B,[R0]
+ PUSH A
+ PUSH B
+ MOV A,#2
+ MOV B,#0
+ LCALL printf
+ DEC SP
+ DEC SP
+ DEC SP
+ DEC SP
+*20:	}
+ LJMP ?AB5
+?AB2 EQU *
+*21:	for(;;);
+?AB6 EQU *
+ LJMP ?AB6
+?AB7 EQU *
+*22:}
+ MOV R7,#-6
+ LJMP ?exit
+*#lcl y 32768 4
+*#lcl x 32768 2
+*#lcl i 32768 0
+*#end
+?AB0 DB 86,97,108,117,101,32,111,102,32,120,32,105,115,32,61,32
+ DB 37,100,10,0,84,104,101,32,117,112,100,97,116,101,100,32
+ DB 118,97,108,117,101,32,111,102,32,121,32,105,115,32,61,32
+ DB 37,100,10,0
+*#gbl printf 37936 0
+*#gbl sprintf 5168 0
+*#gbl concat 5168 0
+*#gbl PSW 5504 0
+*#gbl SP 5504 0
+*#gbl DPH 5504 0
+*#gbl DPL 5504 0
+*#gbl P0 5504 0
+*#gbl P1 5504 0
+*#gbl P2 5504 0
+*#gbl P3 5504 0
+*#gbl IP 5504 0
+*#gbl IE 5504 0
+*#gbl TMOD 5504 0
+*#gbl TCON 5504 0
+*#gbl TH0 5504 0
+*#gbl TL0 5504 0
+*#gbl TH1 5504 0
+*#gbl TL1 5504 0
+*#gbl SCON 5504 0
+*#gbl SBUF 5504 0
+*#gbl PCON 5504 0
+*#gbl T2CON 5504 0
+*#gbl TH2 5504 0
+*#gbl TL2 5504 0
+*#gbl RCAP2H 5504 0
+*#gbl RCAP2L 5504 0
+*#gbl global_var 32768 0
+*#gbl main 560 0
+*#gbl serinit 36912 0
+* Formatted print to console: printf([const] char format, ...)
+printf	RL	A		Two bytes/Stack entry
+	CPL	A		Convert to minus & adjust
+	ADD	A,SP		Offset to SP
+	MOV	R0,A		R0 = stack
+	LCALL	?temp		Get temporary location
+	LCALL	_format_	Invoke formatter
+	LCALL	?temp		Get buffer back
+	LJMP	?putstr		And output string
+*DEMO installed October 29, 2009 (Not to be used after 30 days).
+* Set up the serial port: serinit(speed)
+serinit	MOV	R0,#-5		Point to first parm
+	LCALL	?auto0		Point to it
+	MOV	?R3,[R0]	Get LOW value
+	INC	R0		Advance
+	MOV	?R4,[R0]	Get HIGH value
+* Modify this constant for correct operation at different CPU clocks
+* Value is calculated as the CPU CRYSTAL (in Hz) divided by 384.
+	MOV	A,#28800	Get LOW conversion factor
+	MOV	B,#=28800	Get HIGH conversion factor
+	LCALL	?div		Calculate timer value
+	LCALL	?neg		Convert to count-up value
+	MOV	TMOD,#%00100000	T1=8 bit auto-reload
+	MOV	TH1,A		Timer 1 reload value
+	MOV	TL1,A		Timer 1 initial value
+	MOV	TCON,#%01001001	Run 1, Hold 0
+	MOV	SCON,#%01010010	Mode 1, REN, TXRDY, RXEMPTY
+	RET
+*DEMO installed October 29, 2009 (Not to be used after 30 days).
+*
+* Low level I/O functions to communicate with the console terminal
+*
+* Write a string to the console: putstr(char *string)
+putstr	MOV	R0,#-5		Offset to parameter
+	LCALL	?auto0		Set up address
+	MOV	DPL,[R0]	Get low byte
+	INC	R0		Step to next
+	MOV	DPH,[R0]	Get high byte
+?putstr	MOVX	A,[DPTR]	Get char
+	JZ	?AE2		End of string, return
+	LCALL	?putch		Output (with NEWLINE translation)
+	INC	DPTR		Advance to next char
+	SJMP	?putstr		And continue
+* Write a character to the console: putch(char c)
+putch	MOV	R0,#-5		Offset to parameter
+	LCALL	?auto0		Set up address
+	MOV	A,[R0]		Get char to write
+?putch	JNB	SCON.1,*	Wait for the bit
+	CLR	SCON.1		Indicte we are sending
+	MOV	SBUF,A		Write out char
+	CJNE	A,#$0A,?AE2	Not NEWLINE
+	MOV	A,#$0D		Get CR
+	SJMP	?putch		And go again
+* Check for a character from the console: int chkch()
+chkch	CLR	A		Assume zero
+	JNB	SCON.0,?AE1	No data ready
+* Get a character from the console: int getch()
+getch	JNB	SCON.0,*	Wait for the bit
+	CLR	SCON.0		Indicate we receved it
+	MOV	A,SBUF		Read the data
+	CJNE	A,#$0D,?AE1	Not CR, its OK
+	MOV	A,#$0A		Convert to NEWLINE
+?AE1	MOV	B,#0		Zero high byte
+?AE2	RET
+*DEMO installed October 29, 2009 (Not to be used after 30 days).
+*
+* Common routine to process a format specifier, and build an
+* output string with appropriate substitutions.
+*
+* MEDIUM/LARGE version: read string with MOVC, add '%r' specifier
+*
+* R0	= Pointer to stack variables (format, var1, var2 ...)
+* DPTR	= Pointer to output string
+*
+* Read next character from the format string
+_format_ LCALL	?AF34		Save output pointer
+	MOV	DPL,[R0]	Get format LOW
+	INC	R0		Advance
+	MOV	DPH,[R0]	Get format HIGH
+	INC	R0		Advance
+?AF1	CLR	A		Get ZERO
+	MOV	R6,A		Clear flags
+	MOV	R7,A		Clear width
+	CLR	A		Zero ACC
+	MOVC	A,[A+DPTR]	Read value
+	JNZ	?AF2		Not end of string
+* End of format string, return home with the goods
+	LCALL	?AF34		DPTR = output
+	CLR	A		Get zero
+	MOVX	[DPTR],A	Zero terminate output
+	RET
+* For special '%' command, process operands
+?AF2	CJNE	A,#'%',?AF11	Not a special character
+	INC	DPTR		Advance to next
+	CLR	A		Zero ACC
+	MOVC	A,[A+DPTR]	Get following char
+* If '-', left justify
+	CJNE	A,#'-',?AF3	No a minus
+	ORL	?R7,#%10000000	Set left justify bit
+	INC	DPTR		Advance to next
+	CLR	A		Zero ACC
+	MOVC	A,[A+DPTR]	Get next char
+* If leading '0', zero fill
+?AF3	CJNE	A,#'0',?AF4	Zero fill
+	ORL	?R7,#%01000000	Set ZERO FILL bit
+* Evaluate the field width
+?AF4	ADD	A,#-'0'		Convert to zero
+	CJNE	A,#10,*+3	Compare with no corrution
+	JNC	?AF5		Exit
+	XCH	A,R6		Get width, save char
+	MOV	B,#10		*10
+	MUL			Get new width
+	ADD	A,R6		Include new value
+	MOV	R6,A		Copy back
+	INC	DPTR		Advance
+	CLR	A		Zero ACC
+	MOVC	A,[A+DPTR]	Get next char
+	SJMP	?AF4		And proceed
+* Test for the various special characters
+?AF5	CLR	A		Zero ACC
+	MOVC	A,[A+DPTR]	Get char back
+* 'd' - decimal number
+	CJNE	A,#'d',?AF7	No, try next
+	MOV	A,[R0]		Get LOW value
+	INC	R0		Advance
+	MOV	B,[R0]		Get HIGH value
+	JNB	B.7,?AF6		Not negative
+	ORL	?R7,#%00100000	Set '-' output flag
+	LCALL	?neg		Negate it
+	MOV	[R0],B		Resave LOW
+?AF6	DEC	R0		Advance
+	MOV	[R0],A		Resave LOW
+	SJMP	?AF8		And proceed
+* 'u' - Unsigned number
+?AF7	CJNE	A,#'u',?AF9	No, try next
+?AF8	ORL	?R7,#10		Indicate base 10 number
+	SJMP	?AF14		And proceed
+* 'x' - Hexidecimal number
+?AF9	CJNE	A,#'x',?AF10	No, try next
+	ORL	?R7,#16		Indicate base 16 number
+	SJMP	?AF14
+* 'o' - Octal number
+?AF10	CJNE	A,#'o',?AF13	No, try next
+	ORL	?R7,#8		Indicate base 8	number
+	SJMP	?AF14
+* Nothing special, write the character out
+?AF11	LCALL	?AF34		DPTR = Output
+	MOVX	[DPTR],A	Write into output buffer
+	INC	DPTR		Advance to next char
+* Swap back to format string, advance & process next char
+?AF12	LCALL	?AF34		DPTR = Input
+	INC	DPTR		Skip to next char
+	SJMP	?AF1		Back for next
+* 'b' - Binary number
+?AF13	CJNE	A,#'b',?AF22	No, try next
+	ORL	?R7,#2		Indicate base 2 number
+* Convert numbers into string (on stack)
+?AF14	MOV	R2,#0		Count of digits
+?AF15	PUSH	?R4		Save R4
+	PUSH	?R5		Save R5
+	PUSH	?R6		Save R6
+	PUSH	?R7		Save R7
+	MOV	R3,?R7		Get flags
+	ANL	?R3,#%00011111	Save only number base
+	MOV	R4,#0		Zero high
+	MOV	A,[R0]		Get LOW value
+	INC	R0		Advance
+	MOV	B,[R0]		Get HIGH value
+	LCALL	?div		Perform division
+	MOV	[R0],B		Save HIGH
+	DEC	R0		Backup
+	MOV	[R0],A		Save LOW
+	MOV	A,R5		Get remainder
+	POP	?R7		Restore R7
+	POP	?R6		Restore R6
+	POP	?R5		Restore R5
+	POP	?R4		Restore R4
+	ADD	A,#'0'		Convert to ASCII
+	CJNE	A,#$3A,*+3	Hex digit?
+	JC	?AF16		No, its OK
+	ADD	A,#7		Convert to ALPHANUMERIC
+?AF16	PUSH	A		Save it
+	INC	R2		Advance count
+	MOV	A,[R0]		Get result
+	ORL	A,B		More digits?
+	JNZ	?AF15		Yes, do them
+	LCALL	?AF34		Set DPTR to output
+	MOV	R1,?R2		Save length for unstack
+* If number was negative, output '-'
+	MOV	A,R7		Get flags
+	JNB	A.5,?AF17		Not minus
+	MOV	A,#'-'		Get minus sign
+	MOVX	[DPTR],A	Write it out
+	INC	DPTR		Advance output
+	INC	R2		Advance size (for pad)
+* Unstack the number into the output buffer
+?AF17	LCALL	?AF35		Pad the field
+?AF18	POP	A		Get char
+	MOVX	[DPTR],A	Write it
+	INC	DPTR		Advance
+	DJNZ	R1,?AF18		Do them all
+* If Left justify, pad with spaces
+?AF19	INC	R0		Advance pointer
+	INC	R0		To next stack variable
+?AF20	MOV	A,R7		Get flags
+	JNB	A.7,?AF12		No left justify
+?AF21	MOV	A,R2		Get width
+	CLR	C		Insure no borrow
+	SUBB	A,R6		Calculate remainding
+	JNC	?AF12		Already there
+	MOV	A,#' '		Get output
+	MOVX	[DPTR],A	Place in output buffer
+	INC	DPTR		Advance output
+	INC	R2		Advance size
+	SJMP	?AF21		Do them all
+* 'c' - Single character
+?AF22	CJNE	A,#'c',?AF24	No, try next
+	MOV	R2,1		Length is one
+	LCALL	?AF34		Swap out
+	LCALL	?AF35		Right justify
+	MOV	A,[R0]		Get value
+?AF23	MOVX	[DPTR],A	Write it
+	INC	DPTR		Advance output
+	SJMP	?AF19		Output
+* 's' - External string
+?AF24	CJNE	A,#'s',?AF29	No, try next
+	PUSH	DPL		Save format LOW
+	PUSH	DPH		Save format HIGH
+	MOV	DPL,[R0]	Get string LOW
+	INC	R0		Advance
+	MOV	DPH,[R0]	Get string HIGH
+	MOV	R2,#0		Assume zero length
+?AF25	MOVX	A,[DPTR]	Get char
+	JZ	?AF26		And proceed
+	INC	DPTR		Advance string
+	INC	R2		Advance count
+	SJMP	?AF25		Do till done
+?AF26	LCALL	?AF40		Load DPTR & swap
+	LCALL	?AF35		Right justify
+?AF27	LCALL	?AF34		DPTR = string
+	MOVX	A,[DPTR]	Get a char
+	INC	DPTR		Advance
+	LCALL	?AF34		DPTR = output
+	JZ	?AF28		And proceed
+	MOVX	[DPTR],A	Write to string
+	INC	DPTR		Advance
+	SJMP	?AF27		Do them all
+?AF28	POP	?R5		Restore HIGH format
+	POP	?R4		Restore LOW format
+	SJMP	?AF19		And proceed
+* 'i' - Internal string
+?AF29	CJNE	A,#'i',?AF44	No, try next
+	MOV	?R1,[R0]	Get string address
+	MOV	R2,#0		Assume zero length
+?AF30	MOV	A,[R1]		Get char
+	JZ	?AF31		End of string
+	INC	R1		Advance string
+	INC	R2		Advance count
+	SJMP	?AF30		Do them all
+?AF31	LCALL	?AF34		DPTR = output
+	LCALL	?AF35		Right justify
+	MOV	?R1,[R0]	Reset string
+?AF32	MOV	A,[R1]		Get string
+	JZ	?AF19		End of string
+	MOVX	[DPTR],A	Save it
+	INC	R1		Advance string
+	INC	DPTR		Advance output
+	SJMP	?AF32		Do it all
+* Unknown, just output this character
+?AF33	MOV	R1,A		Save it
+	MOV	R2,#1		Single
+	LCALL	?AF34		Get chars
+	LCALL	?AF35		Right justify
+	MOV	A,R1		Get back
+	SJMP	?AF23		Write & continue
+* 'r' - String from ROM (code)
+?AF44	CJNE	A,#'r',?AF33	No, try next
+	PUSH	DPL		Save format LOW
+	PUSH	DPH		Save format HIGH
+	MOV	DPL,[R0]	Get string LOW
+	INC	R0		Advance
+	MOV	DPH,[R0]	Get string HIGH
+	MOV	R2,#0		Assume zero length
+?AF45	CLR	A		Zero A
+	MOVC	A,[A+DPTR]	Get char
+	JZ	?AF46		And proceed
+	INC	DPTR		Advance string
+	INC	R2		Advance count
+	SJMP	?AF45		Do till done
+?AF46	LCALL	?AF40		Load DPTR & swap
+	LCALL	?AF35		Right justify
+?AF47	LCALL	?AF34		DPTR = string
+	CLR	A		Zero A
+	MOVC	A,[A+DPTR]	Get a char
+	INC	DPTR		Advance
+	LCALL	?AF34		DPTR = output
+	JZ	?AF28		And proceed
+	MOVX	[DPTR],A	Write to string
+	INC	DPTR		Advance
+	SJMP	?AF47		Do them all
+*
+* Load DPTR and swap
+*
+?AF40	MOV	DPH,[R0]	Get HIGH string
+	DEC	R0		Backup
+	MOV	DPL,[R0]	Get LOW string
+*
+* Exchange the input and output pointers (DPTR <-> R4-5)
+*	
+?AF34	XCH	A,R5
+	XCH	A,DPH
+	XCH	A,R5
+	XCH	A,R4
+	XCH	A,DPL
+	XCH	A,R4
+	RET
+*
+* Pad the input field with the proper character
+*
+?AF35	MOV	A,R6		Get width
+	JZ	?AF38		No justification
+	MOV	B,R7		Get pad value
+	JB	B.7,?AF38		Left justify, do nothing
+	PUSH	?R2		Save R2
+?AF36	MOV	A,R2		Get width
+	CLR	C		Insure no borrow
+	SUBB	A,R6		Compare against limit
+	JNC	?AF37		We are already there
+	MOV	A,#' '		Assume space
+	JNB	B.6,*+5		Assumption correct
+	MOV	A,#'0'		Get leading zeros
+	MOVX	[DPTR],A	Write it out
+	INC	DPTR		Advance output
+	INC	R2		Advance count
+	SJMP	?AF36		do them all
+?AF37	POP	?R2		Restore R2
+?AF38	RET
+*DEMO installed October 29, 2009 (Not to be used after 30 days).
+*
+* DDS MICRO-C/51 runtime support functions for ALL memory models
+*
+* Setup R0 to access the stack
+?auto0	XCH	A,R0		Save A, get parameter
+	ADD	A,SP		Adjust for stack offset
+	XCH	A,R0		And restore order
+nargs	RET
+* Setup R1 to access the stack
+?auto1	XCH	A,R1		Save A, get parmater
+	ADD	A,SP		Adjust for stack offset
+	XCH	A,R1		And restore order
+	MOV	R2,#0		Clear high of index
+	RET
+* Adjust the stack pointer by R7 bytes
+?adjstk	POP	DPH		Get high byte of RET addr
+	POP	DPL		Get low byte of RET addr
+	XCH	A,R7		Get adjust (and save A)
+	ADD	A,SP		Adjust stack
+	MOV	SP,A		Set new value
+	XCH	A,R7		Restore A (& return new stack)
+	PUSH	DPL		Resave low
+	PUSH	DPH		Resave high
+	RET
+* Clean up stack & exit function
+?exit	XCH	A,R7		Get adjust (save A)
+	ADD	A,SP		Adjust stack
+	MOV	SP,A		Resave
+	XCH	A,R7		Restore A (& return new stack)
+	RET
+*
+* 16 bit unsigned division of AB / R3-4
+*
+?div	PUSH	?R2		Save index HIGH
+	PUSH	?R1		Save index LOW
+	MOV	R2,B		Save HI1
+	MOV	R1,A		Save LO1
+	MOV 	R6,#0		Begin with zero
+	MOV 	R5,#0		"" ""
+	MOV	R7,#17		16+1 bit shift
+?div1	CLR	C		No carry in
+?div2	MOV	A,R1		Shift parm1 left, C = carry out
+	RLC	A		Do the shift
+	MOV	R1,A		Resave
+	MOV	A,R2		Get high half
+	RLC	A		Do the shift
+	MOV	R2,A		Resave
+	DJNZ	R7,?div3	Not done, keep going
+* Get result and exit
+	MOV	B,A		B = Quotient HIGH
+	MOV	A,R1		A = Quotient LOW
+	POP	?R1		Restore index LOW
+	POP	?R2		Restore index HIGH
+	RET			And go home
+* Compare registers & shift in appropriate bit
+?div3	MOV	A,R5		Shift carry into secondary result
+	RLC	A		Do the shift
+	MOV	R5,A		Resave
+	MOV	A,R6		Get high half
+	RLC	A		Do the shift
+	MOV	R6,A		Resave
+	CLR	C		Clear carry for test
+	MOV	A,R5		Get secondary LOW
+	SUBB	A,R3		Test against primary LOW
+	MOV	B,A		Save for later store
+	MOV	A,R6		Get secondary HIGH
+	SUBB	A,R4		Test against primary high
+	JC	?div1		Still smaller, shift in 0
+	MOV	R5,B		Set new secondary high
+	MOV	R6,A		Set new secondary low
+	SETB	C		Set '1' in register
+	SJMP	?div2		Shift in one
+* Increment the 16 bit accumulator by 2
+?inc2	LCALL	?inc		Extra advance
+* Increment the 16 bit accumulator by 1
+?inc	INC	A		Advance by 1
+	JNZ	*+4		No Overflow
+	INC	B		Advance high
+	RET
+* Decrement the 16 bit accumulator by 1
+?dec	DEC	A		Reduce by 1
+	CJNE	A,#$FF,*+5	No underflow
+	DEC	B		Reduce high
+	RET
+* Two's complement the 16 bit accumulator
+?neg	LCALL	?dec		Decrement the accumulator
+* One's complement the 16 bit accumulator
+?com	CPL	A		Complement low byte
+	XCH	A,B		Swap it
+	CPL	A		Complement high byte
+	XCH	A,B		Reorder
+	RET
+* Signed compares
+?lt	LCALL	?scomp		AB < R3-4 (signed)
+	JC	?ret1
+	SJMP	?ret0
+?le	LCALL	?scomp		AB <= R3-4 (signed)
+	JC	?ret1
+	JNZ	?ret0
+	SJMP	?ret1
+?gt	LCALL	?scomp		AB > R3-4 (signed)
+	JC	?ret0
+	JNZ	?ret1
+	SJMP	?ret0
+?ge	LCALL	?scomp		AB >= R3-4 (signed)
+	JNC	?ret1
+	SJMP	?ret0
+* Equality compares
+?eq	LCALL	?ucomp		AB == R3-4
+?eq1	JZ	?ret1		They are the same
+?ret0	CLR	A		Get zero
+	MOV	B,A		Set high
+	RET			Return logical ZERO
+?ne	LCALL	?ucomp		AB != R3-4
+	JZ	?ret0
+?ret1	CLR	A		Get zero
+	MOV	B,A		Set high
+	INC	A		Convert to 1
+	RET			Return logical ONE
+* Signed compare of AB & R3-4
+?scomp	CLR	C		Clear borrow
+	SUBB	A,R3		Calculate difference (low)
+	XCH	A,B		Get high
+	SUBB	A,R4		Calculate difference (high)
+	JB	A.7,?sco2	Negative == <
+	JB	PSW.2,?sco3	Overflow == <
+?sco1	CLR	C		Indicate not less than
+	ORL	A,B		Setup 'Z' if equal
+	RET
+?sco2	JB	PSW.2,?sco1	Negative & overflow == !<
+?sco3	SETB	C		Indicate less than
+	RET
+* Unsigned compare of AB & R3-4
+?ucomp	XCH	A,B		Get high
+	CLR	C		Zero high
+	SUBB	A,R4		Compare high
+	JNZ	*+5		Different
+	MOV	A,B		Get low
+	SUBB	A,R3		Compare low
+	RET
+*DEMO installed October 29, 2009 (Not to be used after 30 days).
+*
+* DDS MICRO-C/51 runtime library support files for TINY/MEDIUM/LARGE model
+*
+* Load a byte from code memory into TEMP register
+?extbc	MOV	R3,A		Save A
+	CLR	A		Zero offset
+	MOVC	A,[A+DPTR]	Get the byte
+	XCH	A,R3		Restore A, save result
+	RET
+* Load a word from code memory into TEMP register
+?extwc	MOV	R4,A		Save A
+	CLR	A		Zero offset
+	MOVC	A,[A+DPTR]	Get the low order byte
+	MOV	R3,A		Save result LOW
+	MOV	A,#1		Offset to HIGH
+	MOVC	A,[A+DPTR]	Get the high order byte
+	XCH	A,R4		Restore A, save result HIGH
+	RET
+* Load a word from code memory into INDEX register
+?extic	MOV	R2,A		Save A
+	CLR	A		Zero offset
+	MOVC	A,[A+DPTR]	Get the low order byte
+	MOV	R1,A		Save result LOW
+	MOV	A,#1		Offset to HIGH
+	MOVC	A,[A+DPTR]	Get the high order byte
+	XCH	A,R2		Restore A, Save result HIGH
+	RET
+*DEMO installed October 29, 2009 (Not to be used after 30 days).
+*
+* DDS MICRO-C/51 runtime library files for SMALL, COMPACT, MEDIUM and LARGE
+* memory models
+*
+* Locate a temporary buffer on the end of heap storage
+?temp	MOV	DPTR,#?heap	Point to buffer
+?temp1	MOVX	A,[DPTR]	Get flag value
+	INC	DPTR		Skip flag
+	JZ	?temp2		End of list
+	MOVX	A,[DPTR]	Get LOW size
+	MOV	R7,A		Save it
+	INC	DPTR		Skip LOW
+	MOVX	A,[DPTR]	Get HIGH size
+	INC	DPTR		Skip HIGH
+	XCH	A,R7		Get LOW
+	ADD	A,DPL		Add to pointer
+	MOV	DPL,A		Resave pointer
+	MOV	A,R7		Get HIGH
+	ADDC	A,DPH		Add to pointer
+	MOV	DPH,A		Resave pointer
+	SJMP	?temp1		And proceed
+* Load a byte from external memory into TEMP register
+?extb	MOV	R3,A		Save A
+	MOVX	A,[DPTR]	Get the byte
+	XCH	A,R3		Restore A, save result
+?temp2	RET
+* Load a word of external memory into TEMP register
+?extw	MOV	R4,A		Save A
+	MOVX	A,[DPTR]	Get the low order byte
+	MOV	R3,A		Save result LOW
+	INC	DPTR		Advance to next
+	MOVX	A,[DPTR]	Get the high order byte
+	XCH	A,R4		Restore A, save result HIGH
+	RET
+* Load a word of external memory into INDEX register
+?exti	MOV	R2,A		Save A
+	MOVX	A,[DPTR]	Get the low order byte
+	MOV	R1,A		Save result LOW
+	INC	DPTR		Advance to next
+	MOVX	A,[DPTR]	Get the high order byte
+	XCH	A,R2		Restore A, Save result HIGH
+	RET
+*DEMO installed October 29, 2009 (Not to be used after 30 days).
+*#map1 Segment 1, initialized variables (in ROM)
+?Ivars	EQU	*		Address of initialized variables
+?Isize	EQU	*-?Ivars	Size of initialized data
+*#map2 Segment 2, internal "register" variables
+	ORG	$0008		Internal ram ALWAYS starts here
+?stk	EQU	*		Processor stack goes at end
+*#map3 Segment 3, external memory
+	ORG	?RAM		Memory goes here
+global_var DS 2
+*
+* Suffix file, define heap memory at the end of all pre-allocated storage.
+*
+?heap	EQU	*		End of allocated memory
+*DEMO installed October 29, 2009 (Not to be used after 30 days).
